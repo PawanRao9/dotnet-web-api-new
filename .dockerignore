@@ -1,0 +1,30 @@
+# ============================================================================
+# Docker Ignore Configuration (.dockerignore)
+# ============================================================================
+
+# Build Outputs
+bin/
+obj/
+publish/
+out/
+
+# Tests
+tests/
+
+# Git and IDE
+.git/
+.vs/
+.vscode/
+.idea/
+*.suo
+
+# Environment / Secret Files
+.env
+*.env.local
+*.env.production
+
+# Others
+README.md
+scripts/
+docker/
+.github/

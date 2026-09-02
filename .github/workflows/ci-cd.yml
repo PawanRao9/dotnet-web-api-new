@@ -1,0 +1,69 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+env:
+  DOCKER_IMAGE_NAME: blue-green-api
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+        
+    - name: Restore dependencies
+      run: dotnet restore src/BlueGreenApi/BlueGreenApi.csproj
+      
+    - name: Build
+      run: dotnet build src/BlueGreenApi/BlueGreenApi.csproj --no-restore --configuration Release
+      
+    - name: Test
+      run: dotnet test tests/BlueGreenApi.Tests/BlueGreenApi.Tests.csproj --no-build --verbosity normal
+
+  deploy:
+    name: Deploy (Blue-Green)
+    needs: build-and-test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    # In a full production CI/CD, we would build the image here and push to a registry (ECR/DockerHub/GHCR)
+    # Then the remote server would pull that image.
+    - name: Build Docker Image
+      run: |
+        docker build -t ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} -t ${{ env.DOCKER_IMAGE_NAME }}:latest -f Dockerfile .
+        
+    # Example SSH Deployment to a remote Linux Host
+    - name: Execute Blue-Green Deployment on Remote Host
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.DEPLOY_HOST }}
+        username: ${{ secrets.DEPLOY_USER }}
+        key: ${{ secrets.DEPLOY_SSH_KEY }}
+        script: |
+          # 1. Navigate to the project directory on the remote server
+          # In a real environment, this path is pre-configured
+          cd /opt/dotnet-blue-green-deployment
+          
+          # 2. Update to the latest code (or pull the latest docker image)
+          git pull origin main
+          
+          # 3. Execute the deployment orchestrator
+          # This script orchestrates: Detect Inactive -> Deploy -> Health Check -> Switch Nginx
+          bash ./scripts/deploy.sh ${{ github.sha }}
+          
+          # 4. Post-deployment verification
+          bash ./scripts/status.sh
