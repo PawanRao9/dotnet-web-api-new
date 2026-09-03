@@ -40,12 +40,17 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Validate deployment configuration
+    - name: Validate deployment secrets
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       run: |
-        if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then
-          echo "::error title=Missing DEPLOY_HOST Secret::The DEPLOY_HOST repository secret is not set. Go to Repository Settings -> Secrets and variables -> Actions to add DEPLOY_HOST, DEPLOY_USER, and DEPLOY_SSH_KEY."
+        if [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ] || [ -z "$DEPLOY_SSH_KEY" ]; then
+          echo "::error title=Missing Deployment Secrets::DEPLOY_HOST, DEPLOY_USER, or DEPLOY_SSH_KEY is not set"
           exit 1
         fi
+        echo "✓ All deployment secrets are configured"
     
     # In a full production CI/CD, we would build the image here and push to a registry (ECR/DockerHub/GHCR)
     # Then the remote server would pull that image.
