@@ -282,4 +282,4 @@ The `.github/workflows/ci-cd.yml` workflow triggers on push to `main`:
 ### Required GitHub Secrets:
 * `DEPLOY_HOST`: Production server IP/domain.
 * `DEPLOY_USER`: SSH username.
-* `DEPLOY_SSH_KEY`: SSH private key.
+* `DEPLOY_SSH_KEY`: SSH private key
