@@ -23,13 +23,13 @@ jobs:
         dotnet-version: 8.0.x
         
     - name: Restore dependencies
-      run: dotnet restore src/BlueGreenApi/BlueGreenApi.csproj
+      run: dotnet restore tests/BlueGreenApi.Tests/BlueGreenApi.Tests.csproj
       
     - name: Build
-      run: dotnet build src/BlueGreenApi/BlueGreenApi.csproj --no-restore --configuration Release
+      run: dotnet build tests/BlueGreenApi.Tests/BlueGreenApi.Tests.csproj --configuration Release --no-restore
       
     - name: Test
-      run: dotnet test tests/BlueGreenApi.Tests/BlueGreenApi.Tests.csproj --no-build --verbosity normal
+      run: dotnet test tests/BlueGreenApi.Tests/BlueGreenApi.Tests.csproj --configuration Release --no-restore --verbosity normal
 
   deploy:
     name: Deploy (Blue-Green)
