@@ -1,9 +1,5 @@
 #!/bin/bash
-# ============================================================================
-# deploy.sh — Orchestrates the Blue-Green Deployment
-# ============================================================================
-# Usage: ./scripts/deploy.sh [NEW_VERSION]
-# ============================================================================
+set -euo pipefail
 
 NEW_VERSION=${1:-"latest"}
 
@@ -11,10 +7,23 @@ echo "============================================================"
 echo "Starting Blue-Green Deployment (Version: $NEW_VERSION)"
 echo "============================================================"
 
+# Detect Docker Compose command (V2: docker compose, V1: docker-compose)
+COMPOSE_CMD=""
+if docker compose version &>/dev/null; then
+    COMPOSE_CMD="docker compose"
+elif command -v docker-compose &>/dev/null; then
+    COMPOSE_CMD="docker-compose"
+else
+    echo "❌ Docker Compose is not installed."
+    exit 1
+fi
+
+echo "Using Docker Compose command: $COMPOSE_CMD"
+
 # Ensure Nginx is running to determine active environment
-if ! docker compose ps | grep -q nginx; then
+if ! $COMPOSE_CMD ps | grep -q nginx; then
     echo "Nginx is not running. Starting initial stack..."
-    docker compose up -d
+    $COMPOSE_CMD up -d
     sleep 5
 fi
 
@@ -34,13 +43,8 @@ echo "Target environment : $TARGET_ENV"
 echo "Deploying version  : $NEW_VERSION"
 echo "------------------------------------------------------------"
 
-# In a real environment, we might pull a new image or set the new version in .env
-# For this demo, we'll update the APP_VERSION for the target service dynamically if supported,
-# but Docker Compose environment variables are usually read from the host .env or docker-compose.yml.
-# Here, we assume the image 'blue-green-api:latest' is already built with the new code.
-
 echo "Starting $TARGET_ENV container..."
-docker compose up -d --no-deps --build $TARGET_SERVICE
+$COMPOSE_CMD up -d --no-deps --build "$TARGET_SERVICE"
 
 # Wait for startup
 echo "Waiting for container startup..."
@@ -48,11 +52,11 @@ sleep 5
 
 # Run Health Check
 echo "------------------------------------------------------------"
-if bash ./scripts/health-check.sh $TARGET_ENV; then
+if bash ./scripts/health-check.sh "$TARGET_ENV"; then
     echo "------------------------------------------------------------"
     echo "$TARGET_ENV health check passed. Proceeding with traffic switch."
     
-    if bash ./scripts/switch-traffic.sh $TARGET_ENV; then
+    if bash ./scripts/switch-traffic.sh "$TARGET_ENV"; then
         echo "============================================================"
         echo "🎉 DEPLOYMENT SUCCESSFUL!"
         echo "Active Environment: $TARGET_ENV"

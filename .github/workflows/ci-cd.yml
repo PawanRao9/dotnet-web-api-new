@@ -51,14 +51,20 @@ jobs:
           exit 1
         fi
         echo "✓ All deployment secrets are configured"
-    
-    # In a full production CI/CD, we would build the image here and push to a registry (ECR/DockerHub/GHCR)
-    # Then the remote server would pull that image.
-    - name: Build Docker Image
+  
+    - name: Validate deployment secrets
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
       run: |
-        docker build -t ${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} -t ${{ env.DOCKER_IMAGE_NAME }}:latest -f Dockerfile .
-        
-    # Example SSH Deployment to a remote Linux Host
+        if [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ] || [ -z "$DEPLOY_SSH_KEY" ]; then
+          echo "::error title=Missing Deployment Secrets::DEPLOY_HOST, DEPLOY_USER, or DEPLOY_SSH_KEY is not set"
+          exit 1
+        fi
+        echo "✓ All deployment secrets are configured"
+
     - name: Execute Blue-Green Deployment on Remote Host
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -67,22 +73,25 @@ jobs:
         key: ${{ secrets.DEPLOY_SSH_KEY }}
         port: ${{ secrets.DEPLOY_PORT || 22 }}
         script: |
-          # 1. Navigate to the project directory on the remote server
-          # In a real environment, this path is pre-configured
-          # Ensure target directory exists
+          set -euo pipefail
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          echo "Deploying branch: $BRANCH_NAME"
+
           mkdir -p /opt/dotnet-blue-green-deployment
           cd /opt/dotnet-blue-green-deployment
-          # Pull latest code; if repo not initialized, clone instead
-          if [ -d .git ]; then
-            git pull origin main || { echo "::error ::git pull failed"; exit 1; }
-          else
-            git clone https://github.com/PawanRao9/.net-web-api.git . || { echo "::error ::git clone failed"; exit 1; }
-          fi
 
-          
-          # 3. Execute the deployment orchestrator
-          # This script orchestrates: Detect Inactive -> Deploy -> Health Check -> Switch Nginx
-          bash ./scripts/deploy.sh ${{ github.sha }}
-          
-          # 4. Post-deployment verification
+          if [ -d .git ]; then
+            echo "Pulling latest code..."
+            git fetch origin
+            git checkout "$BRANCH_NAME" || true
+            git pull origin "$BRANCH_NAME"
+          else
+            echo "Cloning repository..."
+            git clone https://github.com/PawanRao9/.net-web-api.git .
+            git checkout "$BRANCH_NAME" || true
+          fi
+          echo "Starting deployment..."
+          bash ./scripts/deploy.sh "${{ github.sha }}"
+
+          echo "Running post-deployment status check..."
           bash ./scripts/status.sh

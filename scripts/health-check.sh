@@ -1,3 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+
 export MSYS_NO_PATHCONV=1
 
 TARGET_ENV=$1
@@ -10,6 +13,17 @@ fi
 TARGET_LOWER=$(echo "$TARGET_ENV" | tr '[:upper:]' '[:lower:]')
 SERVICE_NAME="${TARGET_LOWER}-api"
 
+# Detect Docker Compose command
+COMPOSE_CMD=""
+if docker compose version &>/dev/null; then
+    COMPOSE_CMD="docker compose"
+elif command -v docker-compose &>/dev/null; then
+    COMPOSE_CMD="docker-compose"
+else
+    echo "❌ Docker Compose is not installed."
+    exit 1
+fi
+
 echo "Running health check on $TARGET_ENV environment..."
 
 MAX_RETRIES=10
@@ -20,7 +34,7 @@ HEALTHY=false
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
     
-    BODY=$(docker compose exec -T nginx curl -s http://${SERVICE_NAME}:8090/api/health 2>/dev/null)
+    BODY=$($COMPOSE_CMD exec -T nginx curl -s http://${SERVICE_NAME}:8090/api/health 2>/dev/null || true)
     
     if echo "$BODY" | grep -qi "\"environment\":\"$TARGET_ENV\""; then
         echo "✅ $TARGET_ENV is Healthy!"
